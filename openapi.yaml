@@ -1,0 +1,556 @@
+openapi: 3.0.3
+info:
+  title: Multi-user To-do List API
+  version: 1.0.0
+  description: >-
+    後端實習生作業的 API contract。除註冊、登入與健康檢查外，
+    所有 endpoint 均須使用 JWT Bearer Token。
+servers:
+  - url: http://localhost:8080
+    description: Docker Compose local environment
+tags:
+  - name: Authentication
+  - name: Todos
+  - name: Health
+paths:
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: 註冊使用者
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 使用者註冊成功
+          headers:
+            Location:
+              description: 新建立使用者資源的位置（若有提供使用者查詢 endpoint）
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '409':
+          $ref: '#/components/responses/ConflictProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: 使用者登入
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          description: 帳號或密碼錯誤；不得指出是哪一項錯誤
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://example.com/problems/invalid-credentials
+                title: Invalid credentials
+                status: 401
+                detail: The email or password is incorrect.
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+
+  /api/todos:
+    get:
+      tags: [Todos]
+      summary: 取得目前使用者的 Todo 列表
+      operationId: listTodos
+      parameters:
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/PriorityFilter'
+        - $ref: '#/components/parameters/KeywordFilter'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: 分頁後的 Todo 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedTodoResponse'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+    post:
+      tags: [Todos]
+      summary: 建立 Todo
+      operationId: createTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTodoRequest'
+      responses:
+        '201':
+          description: Todo 建立成功
+          headers:
+            Location:
+              required: true
+              description: 新建立 Todo 的 URL
+              schema:
+                type: string
+                example: /api/todos/3fa85f64-5717-4562-b3fc-2c963f66afa6
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+
+  /api/todos/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TodoId'
+    get:
+      tags: [Todos]
+      summary: 取得目前使用者的單一 Todo
+      operationId: getTodoById
+      responses:
+        '200':
+          description: Todo 詳細資料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+    patch:
+      tags: [Todos]
+      summary: 部分更新目前使用者的 Todo
+      description: Request 至少必須包含一個可更新欄位；不得更新 OwnerId、CreatedAt 或 UpdatedAt。
+      operationId: updateTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTodoRequest'
+      responses:
+        '200':
+          description: 更新後的 Todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+    delete:
+      tags: [Todos]
+      summary: 刪除目前使用者的 Todo
+      operationId: deleteTodo
+      responses:
+        '204':
+          description: Todo 已刪除，無 response body
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '500':
+          $ref: '#/components/responses/InternalServerProblem'
+
+  /health:
+    get:
+      tags: [Health]
+      summary: 檢查 API 與資料庫健康狀態
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: API 與必要依賴皆可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+        '503':
+          description: API 的必要依賴不可用
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 使用登入 API 取得的 JWT access token
+
+  parameters:
+    TodoId:
+      name: id
+      in: path
+      required: true
+      description: Todo ID
+      schema:
+        type: string
+        format: uuid
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      description: 依狀態篩選
+      schema:
+        $ref: '#/components/schemas/TodoStatus'
+    PriorityFilter:
+      name: priority
+      in: query
+      required: false
+      description: 依優先級篩選
+      schema:
+        $ref: '#/components/schemas/TodoPriority'
+    KeywordFilter:
+      name: keyword
+      in: query
+      required: false
+      description: 以標題進行不分大小寫的部分比對
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SortBy:
+      name: sortBy
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [createdAt, updatedAt, dueDate, title, priority]
+        default: createdAt
+    SortDirection:
+      name: sortDirection
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+  responses:
+    ValidationProblem:
+      description: Request 格式或欄位驗證失敗
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetails'
+    UnauthorizedProblem:
+      description: 缺少、過期或無效的 JWT access token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFoundProblem:
+      description: 資源不存在或不屬於目前使用者
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ConflictProblem:
+      description: 資源狀態衝突，例如 Email 已被使用
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InternalServerProblem:
+      description: 未預期的伺服器錯誤；不得包含 stack trace 或敏感資訊
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, displayName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: intern@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+          example: Password123!
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Intern
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: intern@example.com
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+          example: Password123!
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [accessToken, tokenType, expiresAt]
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token 到期時間，使用 UTC
+
+    UserResponse:
+      type: object
+      additionalProperties: false
+      required: [id, email, displayName, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateTodoRequest:
+      type: object
+      additionalProperties: false
+      required: [title, priority]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Complete internship assignment
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        priority:
+          $ref: '#/components/schemas/TodoPriority'
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 UTC timestamp
+
+    UpdateTodoRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        status:
+          $ref: '#/components/schemas/TodoStatus'
+        priority:
+          $ref: '#/components/schemas/TodoPriority'
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 UTC timestamp；null 代表清除截止日期
+
+    TodoResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/TodoStatus'
+        priority:
+          $ref: '#/components/schemas/TodoPriority'
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PagedTodoResponse:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, totalCount, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodoResponse'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalCount:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+
+    TodoStatus:
+      type: string
+      enum: [pending, inProgress, completed]
+
+    TodoPriority:
+      type: string
+      enum: [low, medium, high]
+
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+
+    ProblemDetails:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        traceId:
+          type: string
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+
+security:
+  - bearerAuth: []
