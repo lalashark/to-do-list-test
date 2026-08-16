@@ -1,0 +1,19 @@
+# Ignore build outputs
+**/bin/
+**/obj/
+
+# Ignore IDE settings and cache
+.vs/
+.idea/
+*.user
+*.suo
+
+# Ignore Git directory
+.git/
+.gitignore
+
+# Ignore docker files
+Dockerfile
+compose.yaml
+docker-compose.yml
+.dockerignore
